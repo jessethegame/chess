@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/jessethegame/colorgrid"
 )
 
 type coords struct {
@@ -94,12 +95,6 @@ type popGetCoords chan<- coords
 
 type popSetCoords coords
 
-type popMove struct {
-	coords
-	// Error explaining problems, if any
-	result chan<- error
-}
-
 // Die. Close this channel when operation acknowledged (for sync)
 type popKill chan<- bool
 
@@ -113,19 +108,13 @@ type popGetType chan<- pieceType
 
 type piece chan<- pop
 
-func (p piece) ptype() pieceType {
-	pc := make(chan pieceType)
-	p <- popGetType(pc)
-	return <-pc
-}
-
 // Operations on a chess board
 type bop interface{}
 
 // Place a new piece on the board
 type bopNewPiece struct {
 	coords
-	p piece
+	ctrl chan<- pop
 }
 
 type bopMovePiece struct {
@@ -150,17 +139,12 @@ func spawnPiece(c <-chan pop) {
 	var pt pieceType
 	for op := range c {
 		switch t := op.(type) {
-		case popMove:
-			// TODO: Validate
-			close(t.result)
-			x = t.x
-			y = t.y
-			if movechan != nil {
-				movechan <- t.coords
-			}
 		case popSetCoords:
 			x = t.x
 			y = t.y
+			if movechan != nil {
+				movechan <- coords(t)
+			}
 		case popGetCoords:
 			t <- coords{x, y}
 			close(t)
@@ -188,7 +172,16 @@ func addPiece(x, y int, pt pieceType, b board) piece {
 	c <- popSetType(pt)
 	// Move it to the desired coordinates
 	c <- popSetCoords{x, y}
-	b <- bopNewPiece{coords: coords{x, y}, p: c}
+	b <- bopNewPiece{coords: coords{x, y}, ctrl: c}
+	// piece will push updates to coordinates down this channel
+	coordUpdates := make(chan coords)
+	c <- popMoveCallback(coordUpdates)
+	// Translate those updates to a message that includes the control channel
+	go func() {
+		for xy := range coordUpdates {
+			b <- bopNewPiece{xy, c}
+		}
+	}()
 	return c
 }
 
@@ -229,6 +222,29 @@ func addKing(color pieceColor, b board) piece {
 	return addPiece(4, baseline(color), pieceType{KING, color}, b)
 }
 
+func draw(pc *pieceType, c coords) {
+	var fg, bg colorgrid.Color
+	var sprite string
+	if (c.x%2 == 0 && c.y%2 == 0) || (c.x%2 == 1 && c.y%2 == 1) {
+		bg = colorgrid.WHITE
+	} else {
+		bg = colorgrid.BLACK
+	}
+	if pc == nil {
+		sprite = " "
+		fg = colorgrid.BLACK
+	} else {
+		if pc.c == BLACK {
+			fg = colorgrid.RED
+		} else {
+			fg = colorgrid.GREEN
+		}
+		sprite = pc.String()
+	}
+
+	colorgrid.Grid{colorgrid.Size{5, 3}}.Render(c.x, c.y, sprite, fg, bg)
+}
+
 // Run a board management unit.  Closes the done channel when all updates have
 // been consumed and the input channel is closed (for sync).
 func runBoard(c <-chan bop, done chan<- bool) {
@@ -239,26 +255,26 @@ func runBoard(c <-chan bop, done chan<- bool) {
 			if _, exists := pieces[t.coords]; exists {
 				panic(fmt.Sprintf("A piece already exists on %s", t.coords))
 			}
-			pieces[t.coords] = t.p
-			pt := t.p.ptype()
-			fmt.Printf("New piece: %s on %s\n", pt, t.coords)
+			pieces[t.coords] = t.ctrl
+			pc := make(chan pieceType)
+			t.ctrl <- popGetType(pc)
+			ptr := <-pc
+			draw(&ptr, t.coords)
+			//fmt.Printf("New piece: %s on %s\n", <-pc, t.coords)
 			break
 		case bopMovePiece:
 			p, exists := pieces[t.from]
 			if !exists {
 				panic(fmt.Sprintf("No piece at %s", t.from))
 			}
-			pt := p.ptype()
-			msgprefix := fmt.Sprintf("Move %s from %s to %s", pt, t.from, t.to)
-			res := make(chan error)
-			moveOp := popMove{t.to, res}
-			p <- moveOp
-			if err := <-res; err != nil {
-				panic(fmt.Errorf(msgprefix+" failed: %v", err))
-			}
 			delete(pieces, t.from)
 			pieces[t.to] = p
-			fmt.Println(msgprefix)
+			pc := make(chan pieceType)
+			p <- popGetType(pc)
+			ptr := <-pc
+			draw(nil, t.from)
+			draw(&ptr, t.to)
+			//fmt.Printf("Move: %s from %s to %s\n", <-pc, t.from, t.to)
 		case bopGetAllPieces:
 			for _, p := range pieces {
 				t <- p
@@ -273,7 +289,7 @@ func runBoard(c <-chan bop, done chan<- bool) {
 			t <- popKill(donec)
 			<-donec
 			delete(pieces, coords)
-			fmt.Printf("Deleted piece from %s\n", coords)
+			//fmt.Printf("Deleted piece from %s\n", coords)
 			break
 		default:
 			panic(fmt.Sprintf("Illegal board operation: %v", o))
@@ -332,6 +348,19 @@ func parseMoveOp(from, to string) (op bopMovePiece, err error) {
 }
 
 func main() {
+	g := colorgrid.Grid{colorgrid.Size{5, 3}}
+	colorgrid.Clear()
+	var x, y int
+	for y = 0; y < 8; y++ {
+		for x = 0; x < 8; x++ {
+			if (x%2 == 0 && y%2 == 0) || (x%2 == 1 && y%2 == 1) {
+				g.Render(x, y, " ", colorgrid.BLACK, colorgrid.WHITE)
+			} else {
+				g.Render(x, y, " ", colorgrid.WHITE, colorgrid.BLACK)
+			}
+		}
+	}
+
 	boardc := make(chan bop)
 	boarddone := make(chan bool)
 	go runBoard(boardc, boarddone)
