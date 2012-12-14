@@ -308,12 +308,26 @@ func clearBoard(b board) {
 	return
 }
 
+// Parse human-readable coordinates into a move operation
+func parseMoveOp(from, to string) (op bopMovePiece, err error) {
+	_, err = fmt.Sscan(from, &op.from)
+	if err != nil {
+		return
+	}
+	_, err = fmt.Sscan(to, &op.to)
+	return
+}
+
 func main() {
 	boardc := make(chan bop)
 	boarddone := make(chan bool)
 	go runBoard(boardc, boarddone)
 	initBoard(boardc)
 	// Open with a white pawn
-	boardc <- bopMovePiece{coords{3, 1}, coords{3, 3}}
+	op, err := parseMoveOp("D2", "D4")
+	if err != nil {
+		panic(err.Error())
+	}
+	boardc <- op
 	clearBoard(boardc)
 }
