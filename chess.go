@@ -8,6 +8,13 @@ type coords struct {
 	x, y int
 }
 
+func (c coords) String() string {
+	if c.x < 0 || 7 < c.x || c.y < 0 || 7 < c.y {
+		panic(fmt.Sprint("Illegal coordinates (%d, %d)", c.x, c.y))
+	}
+	return fmt.Sprintf("%c%d", "ABCDEFGH"[c.x], c.y+1)
+}
+
 type pieceType int
 
 const (
@@ -129,7 +136,7 @@ func runBoard(c <-chan bop, done chan<- bool) {
 		case bopSetPiece:
 			pc := make(chan pieceType)
 			t.ctrl <- popGetType(pc)
-			fmt.Printf("Moved %s to (%d, %d)\n", <-pc, t.x, t.y)
+			fmt.Printf("Moved %s to %s\n", <-pc, t.coords)
 			break
 		default:
 			panic(fmt.Sprintf("Illegal board operation: %v", o))
