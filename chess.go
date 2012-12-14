@@ -145,12 +145,12 @@ func spawnPiece(c <-chan pop) {
 	}
 }
 
-func addPawn(x, y int, color pieceColor, mu chan<- bop) piece {
+func addPiece(x, y int, pt pieceType, mu chan<- bop) piece {
 	// Start a piece
 	c := make(chan pop)
 	go spawnPiece(c)
 	// Make it a pawn
-	c <- popSetType(pieceType{PAWN, color})
+	c <- popSetType(pt)
 	// Move it to the desired coordinates
 	c <- popSetCoords{x, y}
 	mu <- bopSetPiece{coords: coords{x, y}, ctrl: c}
@@ -164,6 +164,16 @@ func addPawn(x, y int, color pieceColor, mu chan<- bop) piece {
 		}
 	}()
 	return c
+}
+
+func addPawn(x int, color pieceColor, mu chan<- bop) piece {
+	var y int
+	if color == WHITE {
+		y = 1
+	} else {
+		y = 6
+	}
+	return addPiece(x, y, pieceType{PAWN, color}, mu)
 }
 
 // Run a board management unit. Push all location changes down this channel.
@@ -206,22 +216,22 @@ func runBoard(c <-chan bop, done chan<- bool) {
 
 // Initialize an empty chess board by putting pieces in the right places
 func initBoard(c chan<- bop) {
-	addPawn(0, 1, WHITE, c)
-	addPawn(1, 1, WHITE, c)
-	addPawn(2, 1, WHITE, c)
-	addPawn(3, 1, WHITE, c)
-	addPawn(4, 1, WHITE, c)
-	addPawn(5, 1, WHITE, c)
-	addPawn(6, 1, WHITE, c)
-	addPawn(7, 1, WHITE, c)
-	addPawn(0, 6, BLACK, c)
-	addPawn(1, 6, BLACK, c)
-	addPawn(2, 6, BLACK, c)
-	addPawn(3, 6, BLACK, c)
-	addPawn(4, 6, BLACK, c)
-	addPawn(5, 6, BLACK, c)
-	addPawn(6, 6, BLACK, c)
-	addPawn(7, 6, BLACK, c)
+	addPawn(0, WHITE, c)
+	addPawn(1, WHITE, c)
+	addPawn(2, WHITE, c)
+	addPawn(3, WHITE, c)
+	addPawn(4, WHITE, c)
+	addPawn(5, WHITE, c)
+	addPawn(6, WHITE, c)
+	addPawn(7, WHITE, c)
+	addPawn(0, BLACK, c)
+	addPawn(1, BLACK, c)
+	addPawn(2, BLACK, c)
+	addPawn(3, BLACK, c)
+	addPawn(4, BLACK, c)
+	addPawn(5, BLACK, c)
+	addPawn(6, BLACK, c)
+	addPawn(7, BLACK, c)
 	// TODO: Other pieces
 }
 
