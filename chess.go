@@ -113,13 +113,19 @@ type popGetType chan<- pieceType
 
 type piece chan<- pop
 
+func (p piece) ptype() pieceType {
+	pc := make(chan pieceType)
+	p <- popGetType(pc)
+	return <-pc
+}
+
 // Operations on a chess board
 type bop interface{}
 
 // Place a new piece on the board
 type bopNewPiece struct {
 	coords
-	ctrl chan<- pop
+	p piece
 }
 
 type bopMovePiece struct {
@@ -182,7 +188,7 @@ func addPiece(x, y int, pt pieceType, b board) piece {
 	c <- popSetType(pt)
 	// Move it to the desired coordinates
 	c <- popSetCoords{x, y}
-	b <- bopNewPiece{coords: coords{x, y}, ctrl: c}
+	b <- bopNewPiece{coords: coords{x, y}, p: c}
 	return c
 }
 
@@ -233,19 +239,17 @@ func runBoard(c <-chan bop, done chan<- bool) {
 			if _, exists := pieces[t.coords]; exists {
 				panic(fmt.Sprintf("A piece already exists on %s", t.coords))
 			}
-			pieces[t.coords] = t.ctrl
-			pc := make(chan pieceType)
-			t.ctrl <- popGetType(pc)
-			fmt.Printf("New piece: %s on %s\n", <-pc, t.coords)
+			pieces[t.coords] = t.p
+			pt := t.p.ptype()
+			fmt.Printf("New piece: %s on %s\n", pt, t.coords)
 			break
 		case bopMovePiece:
 			p, exists := pieces[t.from]
 			if !exists {
 				panic(fmt.Sprintf("No piece at %s", t.from))
 			}
-			pc := make(chan pieceType)
-			p <- popGetType(pc)
-			msgprefix := fmt.Sprintf("Move %s from %s to %s", <-pc, t.from, t.to)
+			pt := p.ptype()
+			msgprefix := fmt.Sprintf("Move %s from %s to %s", pt, t.from, t.to)
 			res := make(chan error)
 			moveOp := popMove{t.to, res}
 			p <- moveOp
