@@ -131,12 +131,16 @@ func addPawn(x, y int, mu chan<- bop) chan<- pop {
 // Closes the done channel when all updates have been consumed and the input
 // channel is closed (for sync).
 func runBoard(c <-chan bop, done chan<- bool) {
+	pieces := map[coords]chan<- pop{}
 	for o := range c {
 		switch t := o.(type) {
 		case bopSetPiece:
+			cc := make(chan coords)
+			t.ctrl <- popGetCoords(cc)
+			pieces[<-cc] = t.ctrl
 			pc := make(chan pieceType)
 			t.ctrl <- popGetType(pc)
-			fmt.Printf("Moved %s to %s\n", <-pc, t.coords)
+			fmt.Printf("New piece: %s on %s\n", <-pc, t.coords)
 			break
 		default:
 			panic(fmt.Sprintf("Illegal board operation: %v", o))
