@@ -15,10 +15,10 @@ func (c coords) String() string {
 	return fmt.Sprintf("%c%d", "ABCDEFGH"[c.x], c.y+1)
 }
 
-type pieceType int
+type pieceBareType int
 
 const (
-	PAWN pieceType = iota
+	PAWN pieceBareType = iota
 	KNIGHT
 	BISHOP
 	ROOK
@@ -26,8 +26,21 @@ const (
 	KING
 )
 
+type pieceColor int
+
+const (
+	BLACK pieceColor = iota
+	WHITE
+)
+
+type pieceType struct {
+	t pieceBareType
+	c pieceColor
+}
+
 func (pt pieceType) String() string {
-	switch pt {
+	// TODO: color
+	switch pt.t {
 	case PAWN:
 		return "pawn"
 	case KNIGHT:
@@ -113,12 +126,12 @@ func spawnPiece(c <-chan pop) {
 	}
 }
 
-func addPawn(x, y int, mu chan<- bop) piece {
+func addPawn(x, y int, color pieceColor, mu chan<- bop) piece {
 	// Start a piece
 	c := make(chan pop)
 	go spawnPiece(c)
 	// Make it a pawn
-	c <- popSetType(PAWN)
+	c <- popSetType(pieceType{PAWN, color})
 	// Move it to the desired coordinates
 	c <- popSetCoords{x, y}
 	mu <- bopSetPiece{coords: coords{x, y}, ctrl: c}
@@ -174,14 +187,14 @@ func runBoard(c <-chan bop, done chan<- bool) {
 
 // Initialize an empty chess board by putting pieces in the right places
 func initBoard(c chan<- bop) {
-	addPawn(0, 1, c)
-	addPawn(1, 1, c)
-	addPawn(2, 1, c)
-	addPawn(3, 1, c)
-	addPawn(4, 1, c)
-	addPawn(5, 1, c)
-	addPawn(6, 1, c)
-	addPawn(7, 1, c)
+	addPawn(0, 1, WHITE, c)
+	addPawn(1, 1, WHITE, c)
+	addPawn(2, 1, WHITE, c)
+	addPawn(3, 1, WHITE, c)
+	addPawn(4, 1, WHITE, c)
+	addPawn(5, 1, WHITE, c)
+	addPawn(6, 1, WHITE, c)
+	addPawn(7, 1, WHITE, c)
 	// TODO: Other pieces
 	// TODO: adversary
 }
