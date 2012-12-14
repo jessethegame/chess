@@ -214,8 +214,15 @@ func initBoard(c chan<- bop) {
 	addPawn(5, 1, WHITE, c)
 	addPawn(6, 1, WHITE, c)
 	addPawn(7, 1, WHITE, c)
+	addPawn(0, 6, BLACK, c)
+	addPawn(1, 6, BLACK, c)
+	addPawn(2, 6, BLACK, c)
+	addPawn(3, 6, BLACK, c)
+	addPawn(4, 6, BLACK, c)
+	addPawn(5, 6, BLACK, c)
+	addPawn(6, 6, BLACK, c)
+	addPawn(7, 6, BLACK, c)
 	// TODO: Other pieces
-	// TODO: adversary
 }
 
 func clearBoard(c chan<- bop) {
