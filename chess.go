@@ -62,6 +62,8 @@ type popSetType pieceType
 
 type popGetType chan<- pieceType
 
+type piece chan<- pop
+
 // Operations on a chess board
 type bop interface{}
 
@@ -70,9 +72,9 @@ type bopSetPiece struct {
 	ctrl chan<- pop
 }
 
-type bopGetAllPieces chan<- chan<- pop
+type bopGetAllPieces chan<- piece
 
-type bopDelPiece chan<- pop
+type bopDelPiece piece
 
 // Control operations are read from the control channel.
 func spawnPiece(c <-chan pop) {
@@ -111,7 +113,7 @@ func spawnPiece(c <-chan pop) {
 	}
 }
 
-func addPawn(x, y int, mu chan<- bop) chan<- pop {
+func addPawn(x, y int, mu chan<- bop) piece {
 	// Start a piece
 	c := make(chan pop)
 	go spawnPiece(c)
@@ -136,7 +138,7 @@ func addPawn(x, y int, mu chan<- bop) chan<- pop {
 // Closes the done channel when all updates have been consumed and the input
 // channel is closed (for sync).
 func runBoard(c <-chan bop, done chan<- bool) {
-	pieces := map[coords]chan<- pop{}
+	pieces := map[coords]piece{}
 	for o := range c {
 		switch t := o.(type) {
 		case bopSetPiece:
@@ -185,10 +187,10 @@ func initBoard(c chan<- bop) {
 }
 
 func clearBoard(c chan<- bop) {
-	piecesc := make(chan chan<- pop)
+	piecesc := make(chan piece)
 	c <- bopGetAllPieces(piecesc)
 	// Two-step to avoid dead-lock
-	pieces := []chan<- pop{}
+	pieces := []piece{}
 	for p := range piecesc {
 		pieces = append(pieces, p)
 	}
