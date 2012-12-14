@@ -1,0 +1,14 @@
+*.6
+*.8
+*.o
+*.so
+*.out
+*.cgo?.*
+_cgo_*
+_obj
+_test
+_testmain.go
+
+
+*.swp
+*~
