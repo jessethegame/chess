@@ -37,30 +37,34 @@ func (pt pieceType) String() string {
 	panic("Illegal piece type")
 }
 
-type op interface{}
+// Operations on pieces
+type pop interface{}
 
-type opGetCoords chan<- coords
+type popGetCoords chan<- coords
 
-type opSetCoords coords
+type popSetCoords coords
 
 // Die. Close this channel when operation acknowledged (for sync)
-type opKill chan<- bool
+type popKill chan<- bool
 
 // Subscribe to moves by request all coordinates updates be sent down here.
 // Send nil channel to cancel.
-type opMoveCallback chan<- coords
+type popMoveCallback chan<- coords
 
-type opSetPieceType pieceType
+type popSetType pieceType
 
-type opGetPieceType chan<- pieceType
+type popGetType chan<- pieceType
 
-type pieceLoc struct {
+// Operations on a chess board
+type bop interface{}
+
+type bopSetPiece struct {
 	coords
-	ctrl chan<- op
+	ctrl chan<- pop
 }
 
 // Control operations are read from the control channel.
-func spawnPiece(c <-chan op) {
+func spawnPiece(c <-chan pop) {
 	var x, y int
 	var movechan chan<- coords
 	defer func() {
@@ -71,23 +75,23 @@ func spawnPiece(c <-chan op) {
 	var pt pieceType
 	for op := range c {
 		switch t := op.(type) {
-		case opSetCoords:
+		case popSetCoords:
 			x = t.x
 			y = t.y
 			if movechan != nil {
 				movechan <- coords(t)
 			}
-		case opGetCoords:
+		case popGetCoords:
 			t <- coords{x, y}
 			close(t)
-		case opKill:
+		case popKill:
 			close(t)
 			return
-		case opMoveCallback:
+		case popMoveCallback:
 			movechan = t
-		case opSetPieceType:
+		case popSetType:
 			pt = pieceType(t)
-		case opGetPieceType:
+		case popGetType:
 			t <- pt
 			close(t)
 		default:
@@ -96,35 +100,35 @@ func spawnPiece(c <-chan op) {
 	}
 }
 
-func addPawn(x, y int, mu chan<- op) chan<- op {
-	c := make(chan op)
+func addPawn(x, y int, mu chan<- bop) chan<- pop {
+	c := make(chan pop)
 	// Start a block
 	go spawnPiece(c)
 	// piece will push updates to coordinates down this channel
 	coordUpdates := make(chan coords)
-	c <- opMoveCallback(coordUpdates)
+	c <- popMoveCallback(coordUpdates)
 	// Translate those updates to a message that includes the control channel
 	go func() {
 		for xy := range coordUpdates {
-			mu <- pieceLoc{xy, c}
+			mu <- bopSetPiece{xy, c}
 		}
 	}()
 	// Make it a pawn
-	c <- opSetPieceType(PAWN)
+	c <- popSetType(PAWN)
 	// Move it to the desired coordinates
-	c <- opSetCoords{x, y}
+	c <- popSetCoords{x, y}
 	return c
 }
 
 // Run a board management unit. Push all location changes down this channel.
 // Closes the done channel when all updates have been consumed and the input
 // channel is closed (for sync).
-func runBoard(c <-chan op, done chan<- bool) {
+func runBoard(c <-chan bop, done chan<- bool) {
 	for o := range c {
 		switch t := o.(type) {
-		case pieceLoc:
+		case bopSetPiece:
 			pc := make(chan pieceType)
-			t.ctrl <- opGetPieceType(pc)
+			t.ctrl <- popGetType(pc)
 			fmt.Printf("Moved %s to (%d, %d)\n", <-pc, t.x, t.y)
 			break
 		default:
@@ -135,7 +139,7 @@ func runBoard(c <-chan op, done chan<- bool) {
 }
 
 // Initialize an empty chess board by putting pieces in the right places
-func initBoard(c chan<- op) {
+func initBoard(c chan<- bop) {
 	addPawn(0, 1, c)
 	addPawn(1, 1, c)
 	addPawn(2, 1, c)
@@ -149,7 +153,7 @@ func initBoard(c chan<- op) {
 }
 
 func main() {
-	boardc := make(chan op)
+	boardc := make(chan bop)
 	boarddone := make(chan bool)
 	go runBoard(boardc, boarddone)
 	initBoard(boardc)
