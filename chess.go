@@ -94,6 +94,12 @@ type popGetCoords chan<- coords
 
 type popSetCoords coords
 
+type popMove struct {
+	coords
+	// Error explaining problems, if any
+	result chan<- error
+}
+
 // Die. Close this channel when operation acknowledged (for sync)
 type popKill chan<- bool
 
@@ -138,12 +144,17 @@ func spawnPiece(c <-chan pop) {
 	var pt pieceType
 	for op := range c {
 		switch t := op.(type) {
-		case popSetCoords:
+		case popMove:
+			// TODO: Validate
+			close(t.result)
 			x = t.x
 			y = t.y
 			if movechan != nil {
-				movechan <- coords(t)
+				movechan <- t.coords
 			}
+		case popSetCoords:
+			x = t.x
+			y = t.y
 		case popGetCoords:
 			t <- coords{x, y}
 			close(t)
@@ -172,15 +183,6 @@ func addPiece(x, y int, pt pieceType, b board) piece {
 	// Move it to the desired coordinates
 	c <- popSetCoords{x, y}
 	b <- bopNewPiece{coords: coords{x, y}, ctrl: c}
-	// piece will push updates to coordinates down this channel
-	coordUpdates := make(chan coords)
-	c <- popMoveCallback(coordUpdates)
-	// Translate those updates to a message that includes the control channel
-	go func() {
-		for xy := range coordUpdates {
-			b <- bopNewPiece{xy, c}
-		}
-	}()
 	return c
 }
 
@@ -241,11 +243,18 @@ func runBoard(c <-chan bop, done chan<- bool) {
 			if !exists {
 				panic(fmt.Sprintf("No piece at %s", t.from))
 			}
-			delete(pieces, t.from)
-			pieces[t.to] = p
 			pc := make(chan pieceType)
 			p <- popGetType(pc)
-			fmt.Printf("Move: %s from %s to %s\n", <-pc, t.from, t.to)
+			msgprefix := fmt.Sprintf("Move %s from %s to %s", <-pc, t.from, t.to)
+			res := make(chan error)
+			moveOp := popMove{t.to, res}
+			p <- moveOp
+			if err := <-res; err != nil {
+				panic(fmt.Errorf(msgprefix+" failed: %v", err))
+			}
+			delete(pieces, t.from)
+			pieces[t.to] = p
+			fmt.Println(msgprefix)
 		case bopGetAllPieces:
 			for _, p := range pieces {
 				t <- p
