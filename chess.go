@@ -134,18 +134,24 @@ func runBoard(c <-chan op, done chan<- bool) {
 	close(done)
 }
 
+// Initialize an empty chess board by putting pieces in the right places
+func initBoard(c chan<- op) {
+	addPawn(0, 1, c)
+	addPawn(1, 1, c)
+	addPawn(2, 1, c)
+	addPawn(3, 1, c)
+	addPawn(4, 1, c)
+	addPawn(5, 1, c)
+	addPawn(6, 1, c)
+	addPawn(7, 1, c)
+	// TODO: Other pieces
+	// TODO: adversary
+}
+
 func main() {
 	boardc := make(chan op)
 	boarddone := make(chan bool)
 	go runBoard(boardc, boarddone)
-	b1 := addPawn(0, 1, boardc)
-	b2 := addPawn(1, 1, boardc)
-	kill := make(chan bool)
-	b1 <- opKill(kill)
-	<-kill
-	kill = make(chan bool)
-	b2 <- opKill(kill)
-	<-kill
-	close(boardc)
-	<-boarddone
+	initBoard(boardc)
+	// TODO: clearBoard()...
 }
