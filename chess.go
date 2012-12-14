@@ -70,6 +70,10 @@ type bopSetPiece struct {
 	ctrl chan<- pop
 }
 
+type bopGetAllPieces chan<- chan<- pop
+
+type bopDelPiece chan<- pop
+
 // Control operations are read from the control channel.
 func spawnPiece(c <-chan pop) {
 	var x, y int
@@ -108,9 +112,14 @@ func spawnPiece(c <-chan pop) {
 }
 
 func addPawn(x, y int, mu chan<- bop) chan<- pop {
+	// Start a piece
 	c := make(chan pop)
-	// Start a block
 	go spawnPiece(c)
+	// Make it a pawn
+	c <- popSetType(PAWN)
+	// Move it to the desired coordinates
+	c <- popSetCoords{x, y}
+	mu <- bopSetPiece{coords: coords{x, y}, ctrl: c}
 	// piece will push updates to coordinates down this channel
 	coordUpdates := make(chan coords)
 	c <- popMoveCallback(coordUpdates)
@@ -120,10 +129,6 @@ func addPawn(x, y int, mu chan<- bop) chan<- pop {
 			mu <- bopSetPiece{xy, c}
 		}
 	}()
-	// Make it a pawn
-	c <- popSetType(PAWN)
-	// Move it to the desired coordinates
-	c <- popSetCoords{x, y}
 	return c
 }
 
@@ -141,6 +146,22 @@ func runBoard(c <-chan bop, done chan<- bool) {
 			pc := make(chan pieceType)
 			t.ctrl <- popGetType(pc)
 			fmt.Printf("New piece: %s on %s\n", <-pc, t.coords)
+			break
+		case bopGetAllPieces:
+			for _, p := range pieces {
+				t <- p
+			}
+			close(t)
+			break
+		case bopDelPiece:
+			donec := make(chan bool)
+			cc := make(chan coords)
+			t <- popGetCoords(cc)
+			coords := <-cc
+			t <- popKill(donec)
+			<-donec
+			delete(pieces, coords)
+			fmt.Printf("Deleted piece from %s\n", coords)
 			break
 		default:
 			panic(fmt.Sprintf("Illegal board operation: %v", o))
@@ -163,10 +184,24 @@ func initBoard(c chan<- bop) {
 	// TODO: adversary
 }
 
+func clearBoard(c chan<- bop) {
+	piecesc := make(chan chan<- pop)
+	c <- bopGetAllPieces(piecesc)
+	// Two-step to avoid dead-lock
+	pieces := []chan<- pop{}
+	for p := range piecesc {
+		pieces = append(pieces, p)
+	}
+	for _, p := range pieces {
+		c <- bopDelPiece(p)
+	}
+	return
+}
+
 func main() {
 	boardc := make(chan bop)
 	boarddone := make(chan bool)
 	go runBoard(boardc, boarddone)
 	initBoard(boardc)
-	// TODO: clearBoard()...
+	clearBoard(boardc)
 }
