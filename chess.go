@@ -15,6 +15,17 @@ func (c coords) String() string {
 	return fmt.Sprintf("%c%d", "ABCDEFGH"[c.x], c.y+1)
 }
 
+func (c *coords) Scan(state fmt.ScanState, verb rune) error {
+	rx, _, _ := state.ReadRune()
+	ry, _, _ := state.ReadRune()
+	if rx < 'A' || 'G' < rx || ry < '1' || '8' < ry {
+		return fmt.Errorf("Illegal chess coordinates: <%c, %c>", rx, ry)
+	}
+	c.x = int(rx - 'A')
+	c.y = int(ry - '1')
+	return nil
+}
+
 type pieceBareType int
 
 const (
