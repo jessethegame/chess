@@ -108,6 +108,8 @@ type bopGetAllPieces chan<- piece
 
 type bopDelPiece piece
 
+type board chan<- bop
+
 // Control operations are read from the control channel.
 func spawnPiece(c <-chan pop) {
 	var x, y int
@@ -145,7 +147,7 @@ func spawnPiece(c <-chan pop) {
 	}
 }
 
-func addPiece(x, y int, pt pieceType, mu chan<- bop) piece {
+func addPiece(x, y int, pt pieceType, b board) piece {
 	// Start a piece
 	c := make(chan pop)
 	go spawnPiece(c)
@@ -153,27 +155,27 @@ func addPiece(x, y int, pt pieceType, mu chan<- bop) piece {
 	c <- popSetType(pt)
 	// Move it to the desired coordinates
 	c <- popSetCoords{x, y}
-	mu <- bopSetPiece{coords: coords{x, y}, ctrl: c}
+	b <- bopSetPiece{coords: coords{x, y}, ctrl: c}
 	// piece will push updates to coordinates down this channel
 	coordUpdates := make(chan coords)
 	c <- popMoveCallback(coordUpdates)
 	// Translate those updates to a message that includes the control channel
 	go func() {
 		for xy := range coordUpdates {
-			mu <- bopSetPiece{xy, c}
+			b <- bopSetPiece{xy, c}
 		}
 	}()
 	return c
 }
 
-func addPawn(x int, color pieceColor, mu chan<- bop) piece {
+func addPawn(x int, color pieceColor, b board) piece {
 	var y int
 	if color == WHITE {
 		y = 1
 	} else {
 		y = 6
 	}
-	return addPiece(x, y, pieceType{PAWN, color}, mu)
+	return addPiece(x, y, pieceType{PAWN, color}, b)
 }
 
 func baseline(color pieceColor) int {
@@ -183,29 +185,28 @@ func baseline(color pieceColor) int {
 	return 7
 }
 
-func addKnight(x int, color pieceColor, mu chan<- bop) piece {
-	return addPiece(x, baseline(color), pieceType{KNIGHT, color}, mu)
+func addKnight(x int, color pieceColor, b board) piece {
+	return addPiece(x, baseline(color), pieceType{KNIGHT, color}, b)
 }
 
-func addBishop(x int, color pieceColor, mu chan<- bop) piece {
-	return addPiece(x, baseline(color), pieceType{BISHOP, color}, mu)
+func addBishop(x int, color pieceColor, b board) piece {
+	return addPiece(x, baseline(color), pieceType{BISHOP, color}, b)
 }
 
-func addRook(x int, color pieceColor, mu chan<- bop) piece {
-	return addPiece(x, baseline(color), pieceType{ROOK, color}, mu)
+func addRook(x int, color pieceColor, b board) piece {
+	return addPiece(x, baseline(color), pieceType{ROOK, color}, b)
 }
 
-func addQueen(color pieceColor, mu chan<- bop) piece {
-	return addPiece(3, baseline(color), pieceType{QUEEN, color}, mu)
+func addQueen(color pieceColor, b board) piece {
+	return addPiece(3, baseline(color), pieceType{QUEEN, color}, b)
 }
 
-func addKing(color pieceColor, mu chan<- bop) piece {
-	return addPiece(4, baseline(color), pieceType{KING, color}, mu)
+func addKing(color pieceColor, b board) piece {
+	return addPiece(4, baseline(color), pieceType{KING, color}, b)
 }
 
-// Run a board management unit. Push all location changes down this channel.
-// Closes the done channel when all updates have been consumed and the input
-// channel is closed (for sync).
+// Run a board management unit.  Closes the done channel when all updates have
+// been consumed and the input channel is closed (for sync).
 func runBoard(c <-chan bop, done chan<- bool) {
 	pieces := map[coords]piece{}
 	for o := range c {
@@ -241,41 +242,41 @@ func runBoard(c <-chan bop, done chan<- bool) {
 	close(done)
 }
 
-func initBoard1p(c chan<- bop, color pieceColor) {
-	addPawn(0, color, c)
-	addPawn(1, color, c)
-	addPawn(2, color, c)
-	addPawn(3, color, c)
-	addPawn(4, color, c)
-	addPawn(5, color, c)
-	addPawn(6, color, c)
-	addPawn(7, color, c)
-	addRook(0, color, c)
-	addKnight(1, color, c)
-	addBishop(2, color, c)
-	addQueen(color, c)
-	addKing(color, c)
-	addBishop(5, color, c)
-	addKnight(6, color, c)
-	addRook(7, color, c)
+func initBoard1p(b board, color pieceColor) {
+	addPawn(0, color, b)
+	addPawn(1, color, b)
+	addPawn(2, color, b)
+	addPawn(3, color, b)
+	addPawn(4, color, b)
+	addPawn(5, color, b)
+	addPawn(6, color, b)
+	addPawn(7, color, b)
+	addRook(0, color, b)
+	addKnight(1, color, b)
+	addBishop(2, color, b)
+	addQueen(color, b)
+	addKing(color, b)
+	addBishop(5, color, b)
+	addKnight(6, color, b)
+	addRook(7, color, b)
 }
 
 // Initialize an empty chess board by putting pieces in the right places
-func initBoard(c chan<- bop) {
-	initBoard1p(c, WHITE)
-	initBoard1p(c, BLACK)
+func initBoard(b board) {
+	initBoard1p(b, WHITE)
+	initBoard1p(b, BLACK)
 }
 
-func clearBoard(c chan<- bop) {
+func clearBoard(b board) {
 	piecesc := make(chan piece)
-	c <- bopGetAllPieces(piecesc)
+	b <- bopGetAllPieces(piecesc)
 	// Two-step to avoid dead-lock
 	pieces := []piece{}
 	for p := range piecesc {
 		pieces = append(pieces, p)
 	}
 	for _, p := range pieces {
-		c <- bopDelPiece(p)
+		b <- bopDelPiece(p)
 	}
 	return
 }
