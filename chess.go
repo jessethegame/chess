@@ -176,6 +176,33 @@ func addPawn(x int, color pieceColor, mu chan<- bop) piece {
 	return addPiece(x, y, pieceType{PAWN, color}, mu)
 }
 
+func baseline(color pieceColor) int {
+	if color == WHITE {
+		return 0
+	}
+	return 7
+}
+
+func addKnight(x int, color pieceColor, mu chan<- bop) piece {
+	return addPiece(x, baseline(color), pieceType{KNIGHT, color}, mu)
+}
+
+func addBishop(x int, color pieceColor, mu chan<- bop) piece {
+	return addPiece(x, baseline(color), pieceType{BISHOP, color}, mu)
+}
+
+func addRook(x int, color pieceColor, mu chan<- bop) piece {
+	return addPiece(x, baseline(color), pieceType{ROOK, color}, mu)
+}
+
+func addQueen(color pieceColor, mu chan<- bop) piece {
+	return addPiece(3, baseline(color), pieceType{QUEEN, color}, mu)
+}
+
+func addKing(color pieceColor, mu chan<- bop) piece {
+	return addPiece(4, baseline(color), pieceType{KING, color}, mu)
+}
+
 // Run a board management unit. Push all location changes down this channel.
 // Closes the done channel when all updates have been consumed and the input
 // channel is closed (for sync).
@@ -214,25 +241,29 @@ func runBoard(c <-chan bop, done chan<- bool) {
 	close(done)
 }
 
+func initBoard1p(c chan<- bop, color pieceColor) {
+	addPawn(0, color, c)
+	addPawn(1, color, c)
+	addPawn(2, color, c)
+	addPawn(3, color, c)
+	addPawn(4, color, c)
+	addPawn(5, color, c)
+	addPawn(6, color, c)
+	addPawn(7, color, c)
+	addRook(0, color, c)
+	addKnight(1, color, c)
+	addBishop(2, color, c)
+	addQueen(color, c)
+	addKing(color, c)
+	addBishop(5, color, c)
+	addKnight(6, color, c)
+	addRook(7, color, c)
+}
+
 // Initialize an empty chess board by putting pieces in the right places
 func initBoard(c chan<- bop) {
-	addPawn(0, WHITE, c)
-	addPawn(1, WHITE, c)
-	addPawn(2, WHITE, c)
-	addPawn(3, WHITE, c)
-	addPawn(4, WHITE, c)
-	addPawn(5, WHITE, c)
-	addPawn(6, WHITE, c)
-	addPawn(7, WHITE, c)
-	addPawn(0, BLACK, c)
-	addPawn(1, BLACK, c)
-	addPawn(2, BLACK, c)
-	addPawn(3, BLACK, c)
-	addPawn(4, BLACK, c)
-	addPawn(5, BLACK, c)
-	addPawn(6, BLACK, c)
-	addPawn(7, BLACK, c)
-	// TODO: Other pieces
+	initBoard1p(c, WHITE)
+	initBoard1p(c, BLACK)
 }
 
 func clearBoard(c chan<- bop) {
