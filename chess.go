@@ -39,20 +39,39 @@ type pieceType struct {
 }
 
 func (pt pieceType) String() string {
-	// TODO: color
-	switch pt.t {
-	case PAWN:
-		return "pawn"
-	case KNIGHT:
-		return "knight"
-	case BISHOP:
-		return "bishop"
-	case ROOK:
-		return "rook"
-	case QUEEN:
-		return "queen"
-	case KING:
-		return "king"
+	switch pt.c {
+	case WHITE:
+		switch pt.t {
+		case PAWN:
+			return "♙"
+		case KNIGHT:
+			return "♘"
+		case BISHOP:
+			return "♗"
+		case ROOK:
+			return "♖"
+		case QUEEN:
+			return "♕"
+		case KING:
+			return "♔"
+		}
+		break
+	case BLACK:
+		switch pt.t {
+		case PAWN:
+			return "♟"
+		case KNIGHT:
+			return "♞"
+		case BISHOP:
+			return "♝"
+		case ROOK:
+			return "♜"
+		case QUEEN:
+			return "♛"
+		case KING:
+			return "♚"
+		}
+		break
 	}
 	panic("Illegal piece type")
 }
